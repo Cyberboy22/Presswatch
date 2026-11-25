@@ -1,0 +1,8 @@
+# Only needed when Netlify builds the site from GitHub.
+# For drag & drop, run "presswatch record --out site" and drop the "site" folder instead.
+[build]
+  command = "pip install . && presswatch record --out site"
+  publish = "site"
+
+[build.environment]
+  PYTHON_VERSION = "3.12"

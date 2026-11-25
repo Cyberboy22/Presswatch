@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M3 13 Q16 2 29 13 L29 19 Q16 30 3 19 Z%27 fill=%27%23dcebf7%27 stroke=%27%2314212b%27 stroke-width=%272%27/%3E%3C/svg%3E">
+  <title>PressWatch – Glaspresse NGM-1</title>
+  <link rel="preload" href="/static/vendor/archivo-wdth.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script>
+    try {
+      const saved = localStorage.getItem("presswatch-theme");
+      if (saved) document.documentElement.dataset.theme = saved;
+    } catch (e) { /* storage unavailable – follow the OS */ }
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <strong>PressWatch</strong>
+      <span>Glaspresse NGM-1</span>
+      <span class="sim-tag">simulierte Daten</span>
+    </div>
+    <nav class="topnav" aria-label="Bereiche">
+      <a href="#verlauf">Verlauf</a>
+      <a href="#ueberwachung">Überwachung</a>
+      <a href="#modelle">Modelle</a>
+      <a href="#protokoll">Protokoll</a>
+      <a href="#simulator">Simulator</a>
+      <a href="/werker" target="_blank" rel="noopener">Werker-Ansicht</a>
+      <a href="/docs" target="_blank" rel="noopener">API</a>
+    </nav>
+    <div class="live" id="live" data-state="online" aria-live="polite">
+      <span class="live-dot" aria-hidden="true"></span><span id="live-text">verbinde …</span>
+    </div>
+    <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Farbschema wechseln">Hell/Dunkel</button>
+  </header>
+
+  <main>
+    <section class="overview" aria-label="Aktueller Zustand">
+      <div class="overview-main">
+      <article class="verdict" id="verdict" data-status="ok" aria-live="polite">
+        <div class="verdict-head" id="verdict-chip"></div>
+        <h1 id="verdict-title">Lade Zustand …</h1>
+        <p class="explanation" id="verdict-explanation"></p>
+        <ol class="actions-list" id="verdict-actions"></ol>
+        <ul class="evidence" id="verdict-evidence" aria-label="Befunde"></ul>
+        <div class="warmup" id="warmup" hidden></div>
+        <div class="button-row" id="verdict-buttons"></div>
+      </article>
+      <div class="kpis" id="kpis" aria-label="Kennzahlen"></div>
+      </div>
+
+      <article class="lens" aria-labelledby="lens-title">
+        <div class="lens-head">
+          <h2 id="lens-title">Letzte Linse</h2>
+          <span id="lens-chip"></span>
+        </div>
+        <div class="lens-drawing" id="lens-drawing" role="img" aria-label="Querschnitt der zuletzt gepressten Linse"></div>
+        <dl class="lens-values" id="lens-values"></dl>
+      </article>
+    </section>
+
+    <section id="verlauf" aria-labelledby="verlauf-title">
+      <header>
+        <h2 id="verlauf-title">Verlauf der Qualität</h2>
+        <p>Jede Linse bekommt eine Vorhersage, jede gemessene Linse einen Punkt. Klick auf einen Zyklus zeigt seine Sensorkurven.</p>
+      </header>
+      <div class="grid-2">
+        <div class="chart-block">
+          <div class="chart-title"><h3>Formabweichung PV</h3><p>µm, Grenze 5,0 µm</p></div>
+          <ul class="legend" id="legend-pv"></ul>
+          <div class="chart" id="chart-pv"></div>
+          <details class="table-view"><summary>Als Tabelle</summary><div class="table-wrap" id="table-pv"></div></details>
+        </div>
+        <div class="chart-block">
+          <div class="chart-title"><h3>Mittendicke</h3><p>mm, 2,00 ± 0,05 mm</p></div>
+          <ul class="legend" id="legend-ct"></ul>
+          <div class="chart" id="chart-ct"></div>
+          <details class="table-view"><summary>Als Tabelle</summary><div class="table-wrap" id="table-ct"></div></details>
+        </div>
+      </div>
+    </section>
+
+    <section id="ueberwachung" aria-labelledby="ueberwachung-title">
+      <header>
+        <h2 id="ueberwachung-title">Überwachung</h2>
+        <p id="monitoring-since"></p>
+      </header>
+      <div class="grid-2">
+        <div class="chart-block">
+          <div class="chart-title"><h3>Fehler-Drift der Formabweichung</h3><p>CUSUM in Standardabweichungen</p></div>
+          <ul class="legend" id="legend-cusum-pv"></ul>
+          <div class="chart" id="chart-cusum-pv"></div>
+          <p class="muted" style="font-size: var(--step--1)">Die Summe wächst, wenn die gemessenen Linsen dauerhaft schlechter (oder besser) sind als vorhergesagt. Ab der Schwelle gibt es Alarm.</p>
+        </div>
+        <div class="chart-block">
+          <div class="chart-title"><h3>Fehler-Drift der Mittendicke</h3><p>CUSUM in Standardabweichungen</p></div>
+          <ul class="legend" id="legend-cusum-ct"></ul>
+          <div class="chart" id="chart-cusum-ct"></div>
+        </div>
+      </div>
+      <div class="chart-block" style="margin-top: 2rem">
+        <div class="chart-title">
+          <h3>Daten-Drift der Sensoren</h3>
+          <p>Ist minus Soll, je Rezept zentriert, letzte Zyklen gegen Referenz</p>
+        </div>
+        <div class="table-wrap" id="drift-table"></div>
+      </div>
+      <div class="chart-block" style="margin-top: 2rem">
+        <div class="chart-title"><h3>Datenqualität</h3><p>Meldungen der letzten Zyklen</p></div>
+        <div class="table-wrap" id="quality-table"></div>
+      </div>
+    </section>
+
+    <section id="modelle" aria-labelledby="modelle-title">
+      <header>
+        <h2 id="modelle-title">Modelle</h2>
+        <p>Ein neues Modell wird nur aktiv, wenn ein Mensch es freigibt. Jede Version hat eine Modellkarte.</p>
+      </header>
+      <div class="models" id="models"></div>
+    </section>
+
+    <section id="protokoll" aria-labelledby="protokoll-title">
+      <header>
+        <h2 id="protokoll-title">Protokoll</h2>
+        <p>Wer hat wann was entschieden – und warum.</p>
+      </header>
+      <div class="table-wrap" id="audit-table"></div>
+    </section>
+
+    <section id="simulator" aria-labelledby="simulator-title">
+      <header>
+        <h2 id="simulator-title">Simulator</h2>
+        <p>Diesen Teil gibt es in einer echten Fabrik nicht: Hier baust du Fehler in die simulierte Presse ein.</p>
+      </header>
+      <div class="sim" id="sim">
+        <ol class="steps">
+          <li>Warte, bis die Überwachung eingelaufen ist (oben siehst du den Fortschritt).</li>
+          <li>Starte den Werkzeugverschleiß. Nach einer Weile meldet PressWatch „Der Prozess hat sich verändert“.</li>
+          <li>Erstelle einen Retraining-Vorschlag, vergleiche ihn unter „Modelle“ und gib ihn frei – oder lehne ihn ab.</li>
+          <li>Wechsle das Werkzeug. Hast du den Vorschlag freigegeben, sind die Linsen jetzt besser als vorhergesagt: Mach einen Rollback. Sonst setz nur die Überwachung zurück.</li>
+          <li>Lass das Thermoelement driften. PressWatch erkennt einen Sensorfehler und rät vom Retraining ab.</li>
+        </ol>
+        <div class="sim-state" id="sim-state"></div>
+        <div class="button-row" id="sim-buttons">
+          <button class="secondary" type="button" data-sim="tool_wear" data-value="0.03">Werkzeugverschleiß starten</button>
+          <button class="secondary" type="button" data-sim="sensor_fault" data-value="20">Thermoelement driften lassen</button>
+          <button class="secondary" type="button" data-sim="maintenance">Werkzeug wechseln</button>
+          <button class="secondary" type="button" data-sim="reset_faults">Alle Fehler abschalten</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="action-dialog" aria-labelledby="action-title">
+    <form method="dialog" id="action-form">
+      <div class="dialog-head"><h2 id="action-title">Aktion</h2></div>
+      <p id="action-text" class="muted"></p>
+      <label>Dein Name<input name="actor" required maxlength="64" autocomplete="name"></label>
+      <label>Begründung<textarea name="reason" required minlength="3" maxlength="500"></textarea></label>
+      <div class="button-row">
+        <button class="primary" value="confirm" id="action-confirm">Ausführen</button>
+        <button class="secondary" value="cancel" formnovalidate>Abbrechen</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="cycle-dialog" class="wide" aria-labelledby="cycle-title">
+    <div class="dialog-head">
+      <h2 id="cycle-title">Zyklus</h2>
+      <form method="dialog"><button class="secondary">Schließen</button></form>
+    </div>
+    <div id="cycle-body"></div>
+  </dialog>
+
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>

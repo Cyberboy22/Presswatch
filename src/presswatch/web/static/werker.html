@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M3 13 Q16 2 29 13 L29 19 Q16 30 3 19 Z%27 fill=%27%23dcebf7%27 stroke=%27%2314212b%27 stroke-width=%272%27/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#000000">
+  <title>PressWatch – Werker-Ansicht NGM-1</title>
+  <link rel="preload" href="/static/vendor/archivo-wdth.woff2" as="font" type="font/woff2" crossorigin>
+  <style>
+    /* Black background on purpose: on see-through smart glasses black is transparent,
+       so only the text is visible. Large type, one message, nothing else. */
+    @font-face {
+      font-family: "Archivo";
+      src: url("/static/vendor/archivo-wdth.woff2") format("woff2");
+      font-weight: 100 900;
+      font-stretch: 62% 125%;
+    }
+    :root {
+      color-scheme: dark;
+      --bg: #000000;
+      --ink: #f2f5f7;
+      --ink-2: #a9b6c0;
+      --line: #2a343c;
+      --good: #0aac23;
+      --warning: #fbb315;
+      --critical: #dc3c3d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Archivo", system-ui, sans-serif;
+      font-stretch: 90%;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      padding: clamp(1rem, 4vw, 2.5rem);
+      gap: 1.5rem;
+    }
+    header { display: flex; justify-content: space-between; color: var(--ink-2); font-size: 1.1rem; gap: 1rem; }
+    main { display: grid; align-content: center; gap: 1.25rem; }
+    .state { display: flex; align-items: center; gap: 1rem; }
+    .state svg { width: clamp(48px, 10vw, 84px); height: clamp(48px, 10vw, 84px); flex: none; }
+    h1 {
+      margin: 0;
+      font-size: clamp(2.6rem, 9vw, 5.5rem);
+      line-height: 1;
+      font-stretch: 75%;
+      font-weight: 750;
+      letter-spacing: -0.01em;
+    }
+    body[data-status="ok"] .state svg { color: var(--good); }
+    body[data-status="warnung"] .state svg { color: var(--warning); }
+    body[data-status="alarm"] .state svg { color: var(--critical); }
+    .instruction { font-size: clamp(1.4rem, 4.2vw, 2.4rem); line-height: 1.25; max-width: 30ch; margin: 0; }
+    .lens { font-size: clamp(1.1rem, 3vw, 1.6rem); color: var(--ink-2); margin: 0; }
+    .lens strong { color: var(--ink); font-weight: 650; }
+    .strip { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .strip span {
+      width: 30px; height: 30px; border-radius: 4px; display: grid; place-items: center;
+      font-weight: 800; font-size: 0.95rem; color: #000;
+    }
+    .strip .ok { background: var(--good); }
+    .strip .bad { background: var(--critical); color: #fff; }
+    .strip .none { background: var(--line); color: var(--ink-2); }
+    .strip-label { color: var(--ink-2); font-size: 1rem; margin-right: .5rem; }
+    footer { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; color: var(--ink-2); }
+    button {
+      font: inherit; font-size: 1.15rem; font-weight: 650;
+      background: var(--ink); color: var(--bg); border: 0; border-radius: 6px;
+      padding: 0.8rem 1.2rem; min-height: 48px; cursor: pointer;
+    }
+    button:focus-visible { outline: 3px solid var(--warning); outline-offset: 3px; }
+    a { color: var(--ink-2); }
+  </style>
+</head>
+<body data-status="ok">
+  <header>
+    <span>Glaspresse NGM-1</span>
+    <span id="clock" aria-live="off"></span>
+  </header>
+
+  <main aria-live="polite">
+    <div class="state">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path id="state-icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3 8.5l3 3 7-7"/></svg>
+      <h1 id="headline">Verbinde …</h1>
+    </div>
+    <p class="instruction" id="instruction"></p>
+    <p class="lens" id="lens"></p>
+    <div class="strip" id="strip" aria-label="Die letzten Linsen"></div>
+  </main>
+
+  <footer>
+    <span id="foot">PressWatch, simulierte Daten</span>
+    <span style="display:flex; gap:1.25rem; align-items:center; flex-wrap:wrap">
+      <button type="button" id="tool-changed" hidden>Werkzeug gewechselt</button>
+      <a href="/">Zum Dashboard</a>
+    </span>
+  </footer>
+
+  <script type="module">
+    const HEADLINES = { ok: "Alles in Ordnung", warnung: "Bitte prüfen", alarm: "Eingreifen" };
+    const ICONS = { ok: "M3 8.5l3 3 7-7", warnung: "M8 2.5l6 11H2zM8 6.5v3.2M8 11.6v.3", alarm: "M4 4l8 8M12 4l-8 8" };
+    const nf = (d) => new Intl.NumberFormat("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
+    const $ = (id) => document.getElementById(id);
+
+    function cell(cycle) {
+      const span = document.createElement("span");
+      const p = cycle.prediction;
+      span.className = !p ? "none" : p.in_spec ? "ok" : "bad";
+      span.textContent = !p ? "?" : p.in_spec ? "✓" : "✕";
+      span.title = `Zyklus ${cycle.cycle_id}: ${!p ? "keine Vorhersage" : p.in_spec ? "i. O." : "n. i. O."}`;
+      return span;
+    }
+
+    async function refresh() {
+      try {
+        const [status, cycles] = await Promise.all([
+          fetch("/api/status", { cache: "no-store" }).then((r) => r.json()),
+          fetch("/api/cycles?limit=12", { cache: "no-store" }).then((r) => r.json()),
+        ]);
+        const rec = status.recommendation;
+        const last = cycles[cycles.length - 1];
+        let kind = rec.status;
+        let instruction = rec.actions[0] || rec.explanation;
+        if (last && last.prediction && !last.prediction.in_spec && kind === "ok") {
+          kind = "warnung";
+          instruction = `Linse ${last.cycle_id} aussortieren und messen.`;
+        }
+        document.body.dataset.status = kind;
+        $("headline").textContent = kind === "ok" ? HEADLINES.ok : rec.status === "ok" ? "Linse prüfen" : HEADLINES[kind];
+        $("state-icon").setAttribute("d", ICONS[kind]);
+        $("instruction").textContent = instruction;
+        if (last && last.prediction) {
+          const p = last.prediction;
+          $("lens").replaceChildren(
+            `Linse ${last.cycle_id}: Dicke `, Object.assign(document.createElement("strong"), { textContent: `${nf(3).format(p.center_thickness_mm)} mm` }),
+            ", Form ", Object.assign(document.createElement("strong"), { textContent: `${nf(1).format(p.pv_um)} µm` }),
+            p.in_spec ? " – in Toleranz" : " – außerhalb der Toleranz",
+          );
+        } else {
+          $("lens").textContent = last ? `Linse ${last.cycle_id}: keine Vorhersage (Datenfehler)` : "Noch keine Linse gepresst.";
+        }
+        const label = Object.assign(document.createElement("span"), { className: "strip-label", textContent: "Letzte Linsen" });
+        label.style.cssText = "width:auto;height:auto;background:none;color:var(--ink-2);font-weight:400";
+        $("strip").replaceChildren(label, ...cycles.map(cell));
+        $("foot").textContent = `Modell ${status.active_model ? status.active_model.version : "–"}, simulierte Daten`;
+      } catch (error) {
+        document.body.dataset.status = "alarm";
+        $("headline").textContent = "Keine Verbindung";
+        $("instruction").textContent = "Das Netzwerk oder den Server prüfen.";
+      }
+      $("clock").textContent = new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    // Demo only: lets the operator report a tool change to the simulated machine.
+    fetch("/api/sim").then((r) => { if (r.ok) $("tool-changed").hidden = false; }).catch(() => {});
+    $("tool-changed").addEventListener("click", async () => {
+      await fetch("/api/sim", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "maintenance" }) });
+      $("tool-changed").textContent = "Gemeldet";
+      setTimeout(() => ($("tool-changed").textContent = "Werkzeug gewechselt"), 3000);
+    });
+
+    refresh();
+    setInterval(refresh, 2000);
+  </script>
+</body>
+</html>

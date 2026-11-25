@@ -1,0 +1,84 @@
+# The complete pipeline as separate services:
+#   cell (simulated press, OPC UA server + measuring station)
+#     → collector (OPC UA client) → api (FastAPI + models + monitoring) → db (PostgreSQL)
+#   nginx serves everything on http://localhost:8080
+name: presswatch
+
+x-app: &app
+  build: .
+  image: presswatch:latest
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: presswatch
+      POSTGRES_PASSWORD: presswatch
+      POSTGRES_DB: presswatch
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U presswatch -d presswatch"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    <<: *app
+    command: ["presswatch", "api", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      PRESSWATCH_DATABASE_URL: postgresql+psycopg://presswatch:presswatch@db:5432/presswatch
+      PRESSWATCH_OPCUA_ENDPOINT: opc.tcp://cell:4840/presswatch/
+      PRESSWATCH_SIM_CONTROL: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  cell:
+    <<: *app
+    command: ["presswatch", "cell"]
+    environment:
+      PRESSWATCH_API_URL: http://api:8000
+      PRESSWATCH_OPCUA_LISTEN: opc.tcp://0.0.0.0:4840/presswatch/
+      PRESSWATCH_CYCLE_PERIOD_S: "0.5"
+      PRESSWATCH_SAMPLE_EVERY: "2"
+      PRESSWATCH_MEASUREMENT_DELAY_CYCLES: "2"
+    ports:
+      - "4840:4840" # look into the machine with an OPC UA client such as UaExpert
+    depends_on:
+      api:
+        condition: service_healthy
+
+  collector:
+    <<: *app
+    command: ["presswatch", "collector"]
+    environment:
+      PRESSWATCH_API_URL: http://api:8000
+      PRESSWATCH_OPCUA_ENDPOINT: opc.tcp://cell:4840/presswatch/
+    depends_on:
+      api:
+        condition: service_healthy
+      cell:
+        condition: service_started
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
